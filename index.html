@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>100-Day DSA Challenge Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script async src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Neon Dark Theme -->
+    <!-- Application Structure Plan: A dashboard-style SPA. The structure includes a header for overall progress, a central chart for curriculum overview, interactive filter buttons for thematic blocks, and a dynamic content area to display daily tasks. This structure was chosen to provide a high-level overview while allowing users to easily drill down into specific sections without overwhelming them with a single, long list of 100 days. The primary interaction is filtering by thematic block, which makes navigating the dense curriculum intuitive and task-oriented. -->
+    <!-- Visualization & Content Choices: 
+        - Overall Progress: Goal=Motivate -> Viz=Dynamic Progress Bar -> Interaction=Updates on day completion -> Justification=Provides immediate visual feedback.
+        - Thematic Blocks: Goal=Organize -> Viz=Filter Buttons -> Interaction=Click to filter daily view -> Justification=Logical content chunking.
+        - Curriculum Structure: Goal=Inform -> Viz=Donut Chart (Chart.js) -> Interaction=Hover for details -> Justification=Quickly conveys the study plan's focus areas.
+        - Daily Tasks: Goal=Action -> Viz=Interactive Cards -> Interaction=Clickable links, completion checkbox -> Justification=Clear, actionable daily goals.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        :root {
+            --bg-color: #0d1117;
+            --primary-accent: #22d3ee;
+            --primary-accent-rgb: 34, 211, 238;
+            --text-primary: #c9d1d9;
+            --text-secondary: #8b949e;
+            --text-headings: #f0f6fc;
+            --card-bg: rgba(22, 27, 34, 0.6);
+            --card-border: rgba(255, 255, 255, 0.1);
+            --card-shadow: rgba(0, 0, 0, 0.2);
+            --progress-bar-bg: #21262d;
+            --difficulty-easy-bg: rgba(34, 211, 238, 0.1);
+            --difficulty-easy-text: #67e8f9;
+            --difficulty-medium-bg: rgba(250, 204, 21, 0.1);
+            --difficulty-medium-text: #facc15;
+            --difficulty-hard-bg: rgba(244, 63, 94, 0.1);
+            --difficulty-hard-text: #fb7185;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+        }
+
+        h1, h2, h3, h4, h5, h6 {
+            color: var(--text-headings);
+        }
+        
+        .font-code {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        #bg-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+        }
+        .main-container {
+            position: relative;
+            z-index: 1;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 400px;
+            margin-left: auto;
+            margin-right: auto;
+            height: auto;
+            max-height: 400px;
+        }
+        .progress-bar-bg {
+            background-color: var(--progress-bar-bg);
+        }
+        .progress-bar-fg {
+            background: linear-gradient(90deg, var(--primary-accent), #a5f3fc);
+            transition: width 0.5s ease-in-out;
+        }
+        .filter-btn {
+            transition: all 0.2s ease-in-out;
+            border: 1px solid var(--card-border);
+            color: var(--text-secondary);
+        }
+        .filter-btn:hover {
+            background-color: rgba(var(--primary-accent-rgb), 0.1);
+            color: var(--primary-accent);
+            border-color: var(--primary-accent);
+        }
+        .filter-btn.active {
+            background-color: var(--primary-accent);
+            color: #0d1117;
+            font-weight: 600;
+            border-color: var(--primary-accent);
+            box-shadow: 0 0 20px rgba(var(--primary-accent-rgb), 0.4);
+        }
+        .day-card, .content-card {
+            background-color: var(--card-bg);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--card-border);
+            box-shadow: 0 4px 6px var(--card-shadow);
+            transition: all 0.3s ease-in-out;
+        }
+        .day-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 0 25px rgba(var(--primary-accent-rgb), 0.2);
+            border-color: rgba(var(--primary-accent-rgb), 0.3);
+        }
+        .day-card.completed {
+            opacity: 0.6;
+        }
+        .day-card.completed .day-title {
+            text-decoration: line-through;
+            color: var(--text-secondary);
+        }
+        .difficulty-easy { background-color: var(--difficulty-easy-bg); color: var(--difficulty-easy-text); border: 1px solid rgba(34, 211, 238, 0.2); }
+        .difficulty-medium { background-color: var(--difficulty-medium-bg); color: var(--difficulty-medium-text); border: 1px solid rgba(250, 204, 21, 0.2); }
+        .difficulty-hard { background-color: var(--difficulty-hard-bg); color: var(--difficulty-hard-text); border: 1px solid rgba(244, 63, 94, 0.2); }
+        .cta-button {
+            transition: all 0.3s ease;
+            box-shadow: 0 0 20px rgba(var(--primary-accent-rgb), 0.5);
+        }
+        .cta-button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 0 30px rgba(var(--primary-accent-rgb), 0.7);
+        }
+        .view-section {
+            display: none;
+        }
+        .view-section.active {
+            display: block;
+        }
+        .nav-link {
+            transition: all 0.2s ease;
+            border-bottom: 2px solid transparent;
+        }
+        .nav-link.active {
+            color: var(--primary-accent);
+            border-bottom-color: var(--primary-accent);
+        }
+        .leaderboard-item:hover {
+            transform: translateY(-5px) scale(1.02);
+            box-shadow: 0 0 25px rgba(var(--primary-accent-rgb), 0.2);
+            border-color: rgba(var(--primary-accent-rgb), 0.3);
+        }
+    </style>
+</head>
+<body class="antialiased">
+    <canvas id="bg-canvas"></canvas>
+
+    <div class="main-container container mx-auto p-4 sm:p-6 md:p-8 max-w-7xl">
+        
+        <nav class="fixed top-0 left-0 right-0 z-50 bg-opacity-70 backdrop-filter backdrop-blur-lg border-b border-[var(--card-border)]" style="background-color: rgba(13, 17, 23, 0.7);">
+            <div class="container mx-auto px-4 sm:px-6 md:px-8 max-w-7xl">
+                <div class="flex items-center justify-between h-16">
+                    <span class="text-2xl font-bold text-headings font-code">DSA Dash</span>
+                    <div class="flex space-x-4 md:space-x-8 text-lg font-semibold">
+                        <button class="nav-link px-2 py-1" data-view="challenges">Challenges</button>
+                        <button class="nav-link px-2 py-1" data-view="leaderboard">Leaderboard</button>
+                        <button class="nav-link px-2 py-1" data-view="profile">Profile</button>
+                    </div>
+                </div>
+            </div>
+        </nav>
+        
+        <div id="challenges-section" class="view-section pt-16">
+            <header id="hero-section" class="text-center mb-12 pt-16 min-h-[50vh] flex flex-col justify-center items-center">
+                <h1 class="text-4xl md:text-6xl font-bold text-headings">Crack DSA.</h1>
+                <h2 class="text-3xl md:text-5xl font-semibold text-text-primary mt-2">One Challenge at a Time.</h2>
+                <button id="start-challenge-btn" class="cta-button mt-10 bg-primary-accent text-bg-color font-bold py-3 px-8 rounded-full text-lg">
+                    Start Challenge 🚀
+                </button>
+            </header>
+
+            <main id="main-content-area">
+                <section id="progress-overview" class="mb-8 p-6 rounded-xl shadow-md content-card">
+                    <h2 class="text-2xl font-semibold text-headings mb-4">Your Progress</h2>
+                    <div class="progress-bar-bg w-full rounded-full h-6">
+                        <div id="progressBar" class="progress-bar-fg h-6 rounded-full flex items-center justify-center text-gray-900 font-bold text-sm" style="width: 0%;">
+                            <span id="progressText">0%</span>
+                        </div>
+                    </div>
+                    <div class="flex justify-between text-sm font-medium text-text-secondary mt-2">
+                        <span>Day 1</span>
+                        <span id="daysCompletedText">0 of 100 Days Completed</span>
+                        <span>Day 100</span>
+                    </div>
+                </section>
+
+                <section class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+                    <div class="lg:col-span-1 p-6 rounded-xl shadow-md content-card">
+                        <h2 class="text-2xl font-semibold text-headings mb-4 text-center">Curriculum Overview</h2>
+                        <p class="text-center text-text-secondary mb-4 text-sm">This chart shows the distribution of topics across the 100-day plan. Hover over any section to see which thematic block it represents and how many days are dedicated to it.</p>
+                        <div class="chart-container">
+                            <canvas id="overviewChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="lg:col-span-2 p-6 rounded-xl shadow-md content-card">
+                        <h2 class="text-2xl font-semibold text-headings mb-4">Explore by Topic</h2>
+                        <p class="text-text-secondary mb-6 text-sm">The 100-day plan is organized into logical thematic blocks. Select a block below to focus your view on the relevant days and problems.</p>
+                        <div id="filter-container" class="flex flex-wrap gap-3 justify-center">
+                        </div>
+                    </div>
+                </section>
+
+                <section id="daily-plan">
+                    <h2 class="text-3xl font-bold text-headings mb-6 text-center" id="plan-title">All Days</h2>
+                    <div id="plan-container" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                    </div>
+                </section>
+            </main>
+        </div>
+
+        <div id="leaderboard-section" class="view-section pt-24">
+            <h1 class="text-4xl md:text-5xl font-bold text-headings text-center mb-8">Leaderboard</h1>
+            <div id="leaderboard-container" class="space-y-4 max-w-4xl mx-auto">
+            </div>
+        </div>
+
+        <div id="profile-section" class="view-section pt-24">
+            <h1 class="text-4xl md:text-5xl font-bold text-headings text-center mb-8">My Profile</h1>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
+                <div class="lg:col-span-1 content-card p-6 rounded-xl flex flex-col items-center">
+                    <div class="w-32 h-32 rounded-full bg-gray-700 border-4 border-[var(--primary-accent)] flex items-center justify-center text-5xl">👤</div>
+                    <h2 class="text-3xl font-bold mt-4 font-code">CodeMaster_01</h2>
+                    <p class="text-text-secondary">Global Rank: <span class="text-primary-accent font-bold">1,234</span></p>
+                </div>
+                <div class="lg:col-span-2 content-card p-6 rounded-xl">
+                    <h3 class="text-2xl font-semibold mb-4">Problems Solved</h3>
+                    <div class="chart-container max-w-sm h-64">
+                         <canvas id="profile-chart"></canvas>
+                    </div>
+                </div>
+                <div class="lg:col-span-3 content-card p-6 rounded-xl">
+                    <h3 class="text-2xl font-semibold mb-4">Badges & Achievements</h3>
+                    <div class="flex flex-wrap gap-4">
+                        <div class="flex items-center space-x-3 bg-gray-800 p-3 rounded-lg border border-[var(--card-border)]">
+                            <span class="text-3xl">🏆</span>
+                            <div>
+                                <h4 class="font-bold text-headings">100 Day Streak</h4>
+                                <p class="text-sm text-text-secondary">Completed the 100-day challenge.</p>
+                            </div>
+                        </div>
+                         <div class="flex items-center space-x-3 bg-gray-800 p-3 rounded-lg border border-[var(--card-border)]">
+                            <span class="text-3xl">💻</span>
+                            <div>
+                                <h4 class="font-bold text-headings">Graph Guru</h4>
+                                <p class="text-sm text-text-secondary">Mastered all graph problems.</p>
+                            </div>
+                        </div>
+                         <div class="flex items-center space-x-3 bg-gray-800 p-3 rounded-lg border border-[var(--card-border)]">
+                            <span class="text-3xl">💡</span>
+                            <div>
+                                <h4 class="font-bold text-headings">DP Demon</h4>
+                                <p class="text-sm text-text-secondary">Solved 10 Hard DP problems.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script type="module">
+        const dsaPlan = [
+            { day: 1, topic: "Arrays & Hashing", block: "Foundations", problems: [{ n: "Two Sum", d: "Easy", l: "https://leetcode.com/problems/two-sum/" }, { n: "Contains Duplicate", d: "Easy", l: "https://leetcode.com/problems/contains-duplicate/" }, { n: "Valid Anagram", d: "Easy", l: "https://leetcode.com/problems/valid-anagram/" }], insight: "For `Two Sum`, avoid the O(n^2) brute-force solution. Ask: 'For each number x, how can I check for the existence of target - x in constant time?' This question leads directly to the hash map pattern." },
+            { day: 2, topic: "Arrays & Hashing II", block: "Foundations", problems: [{ n: "Group Anagrams", d: "Medium", l: "https://leetcode.com/problems/group-anagrams/" }, { n: "Top K Frequent Elements", d: "Medium", l: "https://leetcode.com/problems/top-k-frequent-elements/" }, { n: "Product of Array Except Self", d: "Medium", l: "https://leetcode.com/problems/product-of-array-except-self/" }], insight: "For `Group Anagrams`, the key is to find a canonical representation for each anagram group. A sorted string is a perfect hash key." },
+            { day: 3, topic: "Two Pointers", block: "Foundations", problems: [{ n: "Valid Palindrome", d: "Easy", l: "https://leetcode.com/problems/valid-palindrome/" }, { n: "Two Sum II", d: "Medium", l: "https://leetcode.com/problems/two-sum-ii-input-array-is-sorted/" }, { n: "3Sum", d: "Medium", l: "https://leetcode.com/problems/3sum/" }], insight: "The 'sorted' keyword is a massive hint. For `Two Sum II`, pointers at the start and end allow you to discard half the remaining search space with each move, achieving an O(n) solution." },
+            { day: 4, topic: "Two Pointers II", block: "Foundations", problems: [{ n: "Container With Most Water", d: "Medium", l: "https://leetcode.com/problems/container-with-most-water/" }, { n: "Trapping Rain Water", d: "Hard", l: "https://leetcode.com/problems/trapping-rain-water/" }], insight: "In `Container With Most Water`, the bottleneck is the shorter of the two lines. To find a potentially larger area, you must move the pointer of the shorter line inward." },
+            { day: 5, topic: "Sliding Window", block: "Foundations", problems: [{ n: "Best Time to Buy and Sell Stock", d: "Easy", l: "https://leetcode.com/problems/best-time-to-buy-and-sell-stock/" }, { n: "Longest Substring Without Repeating Characters", d: "Medium", l: "https://leetcode.com/problems/longest-substring-without-repeating-characters/" }], insight: "The sliding window pattern is about maintaining a 'valid' window. The core logic is: expand the window by moving the right pointer, and if the window becomes invalid, contract it by moving the left pointer." },
+            { day: 6, topic: "Sliding Window II", block: "Foundations", problems: [{ n: "Longest Repeating Character Replacement", d: "Medium", l: "https://leetcode.com/problems/longest-repeating-character-replacement/" }, { n: "Minimum Window Substring", d: "Hard", l: "https://leetcode.com/problems/minimum-window-substring/" }], insight: "For `Minimum Window Substring`, use a hash map to track character counts needed. The window expands until the condition is met, then the left pointer contracts to find the minimum valid window." },
+            { day: 7, topic: "Review Day", block: "Foundations", problems: [{ n: "Mixed Review", d: "Medium", l: "#" }], insight: "Synthesize. Explain the time/space complexity of each approach. Why is one pattern better than another for a given problem? This builds meta-cognitive skill." },
+            { day: 8, topic: "Rest Day", block: "Foundations", problems: [], insight: "Rest is a critical and non-negotiable component of a sustainable high-performance learning plan." },
+            { day: 9, topic: "Stacks", block: "Linear Structures", problems: [{ n: "Valid Parentheses", d: "Easy", l: "https://leetcode.com/problems/valid-parentheses/" }, { n: "Min Stack", d: "Medium", l: "https://leetcode.com/problems/min-stack/" }, { n: "Evaluate Reverse Polish Notation", d: "Medium", l: "https://leetcode.com/problems/evaluate-reverse-polish-notation/" }], insight: "For `Valid Parentheses`, a stack is the natural data structure. Push opening brackets. When a closing bracket is found, check if the top of the stack is the matching opening bracket." },
+            { day: 10, topic: "Stacks II", block: "Linear Structures", problems: [{ n: "Generate Parentheses", d: "Medium", l: "https://leetcode.com/problems/generate-parentheses/" }, { n: "Daily Temperatures", d: "Medium", l: "https://leetcode.com/problems/daily-temperatures/" }, { n: "Car Fleet", d: "Medium", l: "https://leetcode.com/problems/car-fleet/" }], insight: "`Daily Temperatures` is a classic monotonic stack problem. The stack stores indices of days, maintaining a decreasing temperature order, to find the next warmer day." },
+            { day: 11, topic: "Stacks III", block: "Linear Structures", problems: [{ n: "Largest Rectangle in Histogram", d: "Hard", l: "https://leetcode.com/problems/largest-rectangle-in-histogram/" }], insight: "This is the quintessential monotonic stack problem. The stack stores indices of bars in increasing height. When a smaller bar is encountered, pop from the stack and calculate the area for the popped bar." },
+            { day: 12, topic: "Binary Search", block: "Search Algorithms", problems: [{ n: "Binary Search", d: "Easy", l: "https://leetcode.com/problems/binary-search/" }, { n: "Search a 2D Matrix", d: "Medium", l: "https://leetcode.com/problems/search-a-2d-matrix/" }, { n: "Koko Eating Bananas", d: "Medium", l: "https://leetcode.com/problems/koko-eating-bananas/" }], insight: "Binary search applies not just to sorted arrays, but to any monotonic search space. For `Koko`, you're searching for the minimum viable speed `k`—a monotonic function." },
+            { day: 13, topic: "Binary Search II", block: "Search Algorithms", problems: [{ n: "Search in Rotated Sorted Array", d: "Medium", l: "https://leetcode.com/problems/search-in-rotated-sorted-array/" }, { n: "Find Minimum in Rotated Sorted Array", d: "Medium", l: "https://leetcode.com/problems/find-minimum-in-rotated-sorted-array/" }, { n: "Time Based Key-Value Store", d: "Medium", l: "https://leetcode.com/problems/time-based-key-value-store/" }], insight: "For rotated arrays, the key is to determine which half of the array (relative to `mid`) is sorted. This allows you to safely eliminate one half in each step." },
+            { day: 14, topic: "Review Day", block: "Linear Structures", problems: [{ n: "Mixed Review", d: "Hard", l: "#" }], insight: "Re-solve `Minimum Window Substring` and `Largest Rectangle in Histogram`. These are challenging but pattern-defining problems." },
+            { day: 15, topic: "Rest Day", block: "Linear Structures", problems: [], insight: "Active recovery can help reset the mind for the upcoming week." },
+            { day: 16, topic: "Linked Lists", block: "Linear Structures", problems: [{ n: "Reverse Linked List", d: "Easy", l: "https://leetcode.com/problems/reverse-linked-list/" }, { n: "Merge Two Sorted Lists", d: "Easy", l: "https://leetcode.com/problems/merge-two-sorted-lists/" }, { n: "Reorder List", d: "Medium", l: "https://leetcode.com/problems/reorder-list/" }], insight: "`Reverse Linked List` is a fundamental skill. Use three pointers: `prev`, `curr`, and `next_temp`. Master this pointer dance." },
+            { day: 17, topic: "Linked Lists II", block: "Linear Structures", problems: [{ n: "Linked List Cycle", d: "Easy", l: "https://leetcode.com/problems/linked-list-cycle/" }, { n: "Remove Nth Node From End of List", d: "Medium", l: "https://leetcode.com/problems/remove-nth-node-from-end-of-list/" }, { n: "Add Two Numbers", d: "Medium", l: "https://leetcode.com/problems/add-two-numbers/" }], insight: "The fast/slow pointer pattern is key. For `Linked List Cycle`, if a cycle exists, a pointer moving two steps at a time will eventually meet a pointer moving one step at a time." },
+            { day: 18, topic: "Linked Lists III", block: "Linear Structures", problems: [{ n: "Copy List with Random Pointer", d: "Medium", l: "https://leetcode.com/problems/copy-list-with-random-pointer/" }, { n: "LRU Cache", d: "Medium", l: "https://leetcode.com/problems/lru-cache/" }, { n: "Reverse Nodes in k-Group", d: "Hard", l: "https://leetcode.com/problems/reverse-nodes-in-k-group/" }], insight: "`LRU Cache` is a quintessential design problem combining a hash map and a doubly linked list for O(1) operations." },
+            { day: 19, topic: "Review Day", block: "Linear Structures", problems: [{ n: "Mixed Review", d: "Hard", l: "#" }], insight: "Re-solve `LRU Cache` and `Reverse Nodes in k-Group`. These test deep understanding of pointer manipulation and data structure synergy." },
+            { day: 20, topic: "Rest Day", block: "Trees & Tries", problems: [], insight: "A day off before diving into non-linear data structures." },
+            { day: 21, topic: "Binary Trees", block: "Trees & Tries", problems: [{ n: "Invert Binary Tree", d: "Easy", l: "https://leetcode.com/problems/invert-binary-tree/" }, { n: "Maximum Depth of Binary Tree", d: "Easy", l: "https://leetcode.com/problems/maximum-depth-of-binary-tree/" }, { n: "Diameter of Binary Tree", d: "Easy", l: "https://leetcode.com/problems/diameter-of-binary-tree/" }], insight: "The base case is the most critical part of any recursive tree solution. For most problems, the base case is `if not root: return...`." },
+            { day: 22, topic: "Binary Trees II", block: "Trees & Tries", problems: [{ n: "Balanced Binary Tree", d: "Easy", l: "https://leetcode.com/problems/balanced-binary-tree/" }, { n: "Same Tree", d: "Easy", l: "https://leetcode.com/problems/same-tree/" }, { n: "Subtree of Another Tree", d: "Easy", l: "https://leetcode.com/problems/subtree-of-another-tree/" }], insight: "For `Subtree`, you need two recursive functions: one to traverse the main tree (`isSubtree`) and one to check if two trees are identical (`isSameTree`)." },
+            { day: 23, topic: "Binary Trees III", block: "Trees & Tries", problems: [{ n: "Lowest Common Ancestor of a BST", d: "Medium", l: "https://leetcode.com/problems/lowest-common-ancestor-of-a-binary-search-tree/" }, { n: "Binary Tree Level Order Traversal", d: "Medium", l: "https://leetcode.com/problems/binary-tree-level-order-traversal/" }, { n: "Binary Tree Right Side View", d: "Medium", l: "https://leetcode.com/problems/binary-tree-right-side-view/" }], insight: "Level order traversal is BFS on a tree. Use a queue. The core loop involves processing all nodes on one level before moving to the next." },
+            { day: 24, topic: "Binary Trees IV", block: "Trees & Tries", problems: [{ n: "Count Good Nodes in Binary Tree", d: "Medium", l: "https://leetcode.com/problems/count-good-nodes-in-binary-tree/" }, { n: "Validate Binary Search Tree", d: "Medium", l: "https://leetcode.com/problems/validate-binary-search-tree/" }, { n: "Kth Smallest Element in a BST", d: "Medium", l: "https://leetcode.com/problems/kth-smallest-element-in-a-bst/" }], insight: "To validate a BST, it's not enough to check `node.left.val < node.val < node.right.val`. You must pass down min/max bounds during recursion." },
+            { day: 25, topic: "Binary Trees V", block: "Trees & Tries", problems: [{ n: "Construct Binary Tree from Preorder and Inorder Traversal", d: "Medium", l: "https://leetcode.com/problems/construct-binary-tree-from-preorder-and-inorder-traversal/" }, { n: "Serialize and Deserialize Binary Tree", d: "Hard", l: "https://leetcode.com/problems/serialize-and-deserialize-binary-tree/" }], insight: "Serialization converts a tree into a string. A preorder traversal is a good choice. Use a special marker (e.g., 'N' for null) to encode the structure." },
+            { day: 26, topic: "Tries (Prefix Trees)", block: "Trees & Tries", problems: [{ n: "Implement Trie (Prefix Tree)", d: "Medium", l: "https://leetcode.com/problems/implement-trie-prefix-tree/" }, { n: "Design Add and Search Words Data Structure", d: "Medium", l: "https://leetcode.com/problems/design-add-and-search-words-data-structure/" }, { n: "Word Search II", d: "Hard", l: "https://leetcode.com/problems/word-search-ii/" }], insight: "A Trie is a tree-like data structure for efficient prefix-based string operations. `Word Search II` combines DFS/backtracking on a grid with a Trie for efficient prefix checking." },
+            { day: 27, topic: "Review Day", block: "Trees & Tries", problems: [{ n: "Mixed Review", d: "Hard", l: "#" }], insight: "Re-solve `Diameter of Binary Tree` (DFS) and `Binary Tree Right Side View` (BFS). Articulate why one traversal is better suited for each problem." },
+            { day: 28, topic: "Rest Day", block: "Trees & Tries", problems: [], insight: "Consolidate your understanding of tree traversals." },
+            { day: 29, topic: "Heaps (Priority Queues)", block: "Heaps", problems: [{ n: "Kth Largest Element in a Stream", d: "Easy", l: "https://leetcode.com/problems/kth-largest-element-in-a-stream/" }, { n: "Last Stone Weight", d: "Easy", l: "https://leetcode.com/problems/last-stone-weight/" }, { n: "K Closest Points to Origin", d: "Medium", l: "https://leetcode.com/problems/k-closest-points-to-origin/" }], insight: "Heaps are perfect for 'Top K' problems. To find the Kth largest, use a min-heap of size K." },
+            { day: 30, topic: "Heaps II", block: "Heaps", problems: [{ n: "Kth Largest Element in an Array", d: "Medium", l: "https://leetcode.com/problems/kth-largest-element-in-an-array/" }, { n: "Task Scheduler", d: "Medium", l: "https://leetcode.com/problems/task-scheduler/" }, { n: "Find Median from Data Stream", d: "Hard", l: "https://leetcode.com/problems/find-median-from-data-stream/" }], insight: "For `Find Median`, use two heaps: a max-heap for the smaller half of the numbers and a min-heap for the larger half. Keep the heaps balanced." },
+            { day: 31, topic: "Review Day", block: "Heaps", problems: [{ n: "Mixed Review", d: "Hard", l: "#" }], insight: "Re-solve `Word Search II` and `Find Median from Data Stream`. These are complex problems that synthesize multiple concepts." },
+            { day: 32, topic: "Rest Day", block: "Backtracking", problems: [], insight: "Prepare for the deep dive into backtracking." },
+            { day: 33, topic: "Backtracking", block: "Backtracking", problems: [{ n: "Subsets", d: "Medium", l: "https://leetcode.com/problems/subsets/" }, { n: "Combination Sum", d: "Medium", l: "https://leetcode.com/problems/combination-sum/" }, { n: "Permutations", d: "Medium", l: "https://leetcode.com/problems/permutations/" }], insight: "Establish the core recursive template: choose, explore, un-choose. This is the foundation for all backtracking problems." },
+            { day: 34, topic: "Backtracking II", block: "Backtracking", problems: [{ n: "Subsets II", d: "Medium", l: "https://leetcode.com/problems/subsets-ii/" }, { n: "Combination Sum II", d: "Medium", l: "https://leetcode.com/problems/combination-sum-ii/" }, { n: "Permutations II", d: "Medium", l: "https://leetcode.com/problems/permutations-ii/" }], insight: "The main difference in the 'II' versions is handling duplicates. Sorting the input and skipping identical elements prevents duplicate combinations/permutations." },
+            { day: 35, topic: "Backtracking III", block: "Backtracking", problems: [{ n: "Palindrome Partitioning", d: "Medium", l: "https://leetcode.com/problems/palindrome-partitioning/" }, { n: "Letter Combinations of a Phone Number", d: "Medium", l: "https://leetcode.com/problems/letter-combinations-of-a-phone-number/" }], insight: "Map the problem to a decision tree. At each step, what are the choices? For the phone number problem, the choices are the letters corresponding to the current digit." },
+            { day: 36, topic: "Backtracking IV", block: "Backtracking", problems: [{ n: "N-Queens", d: "Hard", l: "https://leetcode.com/problems/n-queens/" }, { n: "Word Search", d: "Medium", l: "https://leetcode.com/problems/word-search/" }], insight: "For grid-based backtracking, the challenge is managing state. For N-Queens, you need to track occupied columns and diagonals efficiently, often using sets." },
+            { day: 37, topic: "Review Day", block: "Backtracking", problems: [{ n: "Mixed Review", d: "Hard", l: "#" }], insight: "Draw the recursion tree for one of the harder problems like N-Queens. Visualizing the 'choose, explore, un-choose' steps solidifies the mental model." },
+            { day: 38, topic: "Rest Day", block: "Backtracking", problems: [], insight: "Backtracking can be mentally taxing. A good rest is essential." },
+            { day: 39, topic: "Graphs", block: "Graphs", problems: [{ n: "Number of Islands", d: "Medium", l: "https://leetcode.com/problems/number-of-islands/" }, { n: "Clone Graph", d: "Medium", l: "https://leetcode.com/problems/clone-graph/" }, { n: "Max Area of Island", d: "Medium", l: "https://leetcode.com/problems/max-area-of-island/" }], insight: "`Number of Islands` is a classic application of DFS or BFS. Iterate through the grid. If you find a '1', start a traversal to find all connected '1's and mark them as visited." },
+            { day: 40, topic: "Graphs II", block: "Graphs", problems: [{ n: "Pacific Atlantic Water Flow", d: "Medium", l: "https://leetcode.com/problems/pacific-atlantic-water-flow/" }, { n: "Surrounded Regions", d: "Medium", l: "https://leetcode.com/problems/surrounded-regions/" }, { n: "Rotting Oranges", d: "Medium", l: "https://leetcode.com/problems/rotting-oranges/" }], insight: "`Rotting Oranges` is a multi-source BFS problem. Start the BFS with all initially rotten oranges in the queue simultaneously." },
+            { day: 41, topic: "Graphs III", block: "Graphs", problems: [{ n: "Course Schedule", d: "Medium", l: "https://leetcode.com/problems/course-schedule/" }, { n: "Course Schedule II", d: "Medium", l: "https://leetcode.com/problems/course-schedule-ii/" }], insight: "This is cycle detection in a directed graph. Use DFS with three states (unvisited, visiting, visited) to detect back edges, which indicate a cycle. This is the core of topological sorting." },
+            { day: 42, topic: "Graphs IV", block: "Graphs", problems: [{ n: "Redundant Connection", d: "Medium", l: "https://leetcode.com/problems/redundant-connection/" }, { n: "Number of Connected Components in an Undirected Graph", d: "Medium", l: "https://leetcode.com/problems/number-of-connected-components-in-an-undirected-graph/" }, { n: "Graph Valid Tree", d: "Medium", l: "https://leetcode.com/problems/graph-valid-tree/" }], insight: "A graph is a valid tree if it has no cycles and is fully connected. Union-Find can check for cycles, and at the end, there should be only one component." },
+            { day: 43, topic: "Graphs V", block: "Graphs", problems: [{ n: "Word Ladder", d: "Hard", l: "https://leetcode.com/problems/word-ladder/" }], insight: "This is a shortest path problem on an unweighted graph. The nodes are words, and an edge exists between words that differ by one letter. BFS is the perfect algorithm for this." },
+            { day: 44, topic: "Review Day", block: "Graphs", problems: [{ n: "Mixed Review", d: "Medium", l: "#" }], insight: "Distinguish when to use BFS vs. DFS. BFS is for shortest path in unweighted graphs. DFS is for general exploration, pathfinding, and cycle detection." },
+            { day: 45, topic: "Rest Day", block: "Graphs", problems: [], insight: "Final rest before the deep dive into DP." },
+            { day: 46, topic: "1D Dynamic Programming", block: "Dynamic Programming", problems: [{ n: "Climbing Stairs", d: "Easy", l: "https://leetcode.com/problems/climbing-stairs/" }, { n: "Min Cost Climbing Stairs", d: "Easy", l: "https://leetcode.com/problems/min-cost-climbing-stairs/" }, { n: "House Robber", d: "Medium", l: "https://leetcode.com/problems/house-robber/" }], insight: "These problems introduce the core DP concepts. The number of ways to reach step `i` is the sum of ways to reach `i-1` and `i-2`. This is the Fibonacci sequence in disguise." },
+            { day: 47, topic: "1D Dynamic Programming II", block: "Dynamic Programming", problems: [{ n: "House Robber II", d: "Medium", l: "https://leetcode.com/problems/house-robber-ii/" }, { n: "Longest Palindromic Substring", d: "Medium", l: "https://leetcode.com/problems/longest-palindromic-substring/" }, { n: "Palindromic Substrings", d: "Medium", l: "https://leetcode.com/problems/palindromic-substrings/" }], insight: "`House Robber II` cleverly reduces the problem. Since the first and last houses are adjacent, the solution is the max of robbing houses 0 to n-2, or robbing houses 1 to n-1." },
+            { day: 48, topic: "1D Dynamic Programming III", block: "Dynamic Programming", problems: [{ n: "Decode Ways", d: "Medium", l: "https://leetcode.com/problems/decode-ways/" }, { n: "Word Break", d: "Medium", l: "https://leetcode.com/problems/word-break/" }], insight: "For `Word Break`, `dp[i]` represents whether the substring `s[:i]` can be segmented. The transition checks if `dp[j]` is true and `s[j:i]` is in the dictionary for some `j < i`." },
+            { day: 49, topic: "1D Dynamic Programming IV", block: "Dynamic Programming", problems: [{ n: "Coin Change", d: "Medium", l: "https://leetcode.com/problems/coin-change/" }, { n: "Maximum Product Subarray", d: "Medium", l: "https://leetcode.com/problems/maximum-product-subarray/" }, { n: "Longest Increasing Subsequence", d: "Medium", l: "https://leetcode.com/problems/longest-increasing-subsequence/" }], insight: "For `Coin Change`, `dp[i]` represents the minimum coins needed for amount `i`. The transition is `dp[i] = min(dp[i], 1 + dp[i - coin])` for each coin." },
+            { day: 50, topic: "2D Dynamic Programming", block: "Dynamic Programming", problems: [{ n: "Unique Paths", d: "Medium", l: "https://leetcode.com/problems/unique-paths/" }, { n: "Longest Common Subsequence", d: "Medium", l: "https://leetcode.com/problems/longest-common-subsequence/" }], insight: "The number of paths to cell `(i, j)` is the sum of paths to `(i-1, j)` and `(i, j-1)`. This is a fundamental 2D DP recurrence relation." },
+            { day: 51, topic: "Review Day", block: "Dynamic Programming", problems: [{ n: "Mixed Review", d: "Medium", l: "#" }], insight: "For any DP problem, clearly define two things: 1. The state (`dp[i]` or `dp[i][j]`). 2. The transition function that relates the current state to previous states." },
+            { day: 52, topic: "Rest Day", block: "Dynamic Programming", problems: [], insight: "Let the DP concepts sink in." },
+            { day: 53, topic: "Advanced DP", block: "Dynamic Programming", problems: [{ n: "Best Time to Buy and Sell Stock with Cooldown", d: "Medium", l: "https://leetcode.com/problems/best-time-to-buy-and-sell-stock-with-cooldown/" }, { n: "Coin Change II", d: "Medium", l: "https://leetcode.com/problems/coin-change-ii/" }], insight: "State machine DP is powerful. For the stock problem, you can be in one of three states: holding a stock, not holding (just sold), or not holding (can buy). Model the transitions." },
+            { day: 54, topic: "Advanced DP II", block: "Dynamic Programming", problems: [{ n: "Target Sum", d: "Medium", l: "https://leetcode.com/problems/target-sum/" }, { n: "Partition Equal Subset Sum", d: "Medium", l: "https://leetcode.com/problems/partition-equal-subset-sum/" }], insight: "These are variations of the 0/1 Knapsack problem. The goal is to find a subset of numbers that sum to a particular target." },
+            { day: 55, topic: "Advanced DP III", block: "Dynamic Programming", problems: [{ n: "Edit Distance", d: "Medium", l: "https://leetcode.com/problems/edit-distance/" }, { n: "Burst Balloons", d: "Hard", l: "https://leetcode.com/problems/burst-balloons/" }], insight: "`Edit Distance` is a classic 2D DP problem. `dp[i][j]` is the min distance between `word1[:i]` and `word2[:j]`. The transitions consider insert, delete, or replace operations." },
+            { day: 56, topic: "Greedy Algorithms", block: "Greedy", problems: [{ n: "Maximum Subarray", d: "Medium", l: "https://leetcode.com/problems/maximum-subarray/" }, { n: "Jump Game", d: "Medium", l: "https://leetcode.com/problems/jump-game/" }, { n: "Gas Station", d: "Medium", l: "https://leetcode.com/problems/gas-station/" }], insight: "`Maximum Subarray` (Kadane's Algorithm) is a great example of a greedy approach that is also a DP solution. At each step, you make the locally optimal choice." },
+            { day: 57, topic: "Greedy Algorithms II", block: "Greedy", problems: [{ n: "Merge Intervals", d: "Medium", l: "https://leetcode.com/problems/merge-intervals/" }, { n: "Non-overlapping Intervals", d: "Medium", l: "https://leetcode.com/problems/non-overlapping-intervals/" }, { n: "Minimum Number of Arrows to Burst Balloons", d: "Medium", l: "https://leetcode.com/problems/minimum-number-of-arrows-to-burst-balloons/" }], insight: "For interval problems, sorting by the start or end time is almost always the first step. The greedy choice then involves comparing the current interval to the previous one." },
+            { day: 58, topic: "Advanced Algorithms", block: "Advanced", problems: [{ n: "Network Delay Time", d: "Medium", l: "https://leetcode.com/problems/network-delay-time/" }, { n: "Cheapest Flights Within K Stops", d: "Medium", l: "https://leetcode.com/problems/cheapest-flights-within-k-stops/" }], insight: "`Network Delay Time` is a direct application of Dijkstra's algorithm. `Cheapest Flights` is a variation that can be solved with a modified Dijkstra's or Bellman-Ford." },
+            { day: 59, topic: "Bit Manipulation", block: "Advanced", problems: [{ n: "Number of 1 Bits", d: "Easy", l: "https://leetcode.com/problems/number-of-1-bits/" }, { n: "Counting Bits", d: "Easy", l: "https://leetcode.com/problems/counting-bits/" }, { n: "Reverse Bits", d: "Easy", l: "https://leetcode.com/problems/reverse-bits/" }], insight: "The `n & (n - 1)` trick is a clever way to clear the least significant bit. This can be used to count the number of set bits in O(k) time where k is the number of set bits." },
+            { day: 60, topic: "Final Review", block: "Advanced", problems: [{ n: "LFU Cache", d: "Hard", l: "https://leetcode.com/problems/lfu-cache/" }, { n: "Sliding Window Maximum", d: "Hard", l: "https://leetcode.com/problems/sliding-window-maximum/" }], insight: "`LFU Cache` is a challenging design problem that requires multiple data structures. `Sliding Window Maximum` can be solved efficiently with a deque." },
+            { day: 61, topic: "DP Review", block: "Synthesis & Review", problems: [{ n: "Climbing Stairs", d: "Easy", l: "https://leetcode.com/problems/climbing-stairs/" }, { n: "Coin Change", d: "Medium", l: "https://leetcode.com/problems/coin-change/" }, { n: "Longest Increasing Subsequence", d: "Medium", l: "https://leetcode.com/problems/longest-increasing-subsequence/" }], insight: "Review the fundamental DP patterns. Can you articulate the state and transition for each of these problems from memory? This is the key to solving new DP problems." },
+            { day: 62, topic: "Graph Review", block: "Synthesis & Review", problems: [{ n: "Number of Islands", d: "Medium", l: "https://leetcode.com/problems/number-of-islands/" }, { n: "Course Schedule", d: "Medium", l: "https://leetcode.com/problems/course-schedule/" }, { n: "Clone Graph", d: "Medium", l: "https://leetcode.com/problems/clone-graph/" }], insight: "Solidify your understanding of BFS vs. DFS vs. Topological Sort. When is each one appropriate? What are the space/time complexities?" },
+            { day: 63, topic: "Backtracking Review", block: "Synthesis & Review", problems: [{ n: "Subsets", d: "Medium", l: "https://leetcode.com/problems/subsets/" }, { n: "Permutations", d: "Medium", l: "https://leetcode.com/problems/permutations/" }, { n: "Combination Sum", d: "Medium", l: "https://leetcode.com/problems/combination-sum/" }], insight: "The 'choose, explore, un-choose' template is universal. Practice applying it with slight modifications for each of these core problem types." },
+            { day: 64, topic: "Data Structure Design", block: "Synthesis & Review", problems: [{ n: "LRU Cache", d: "Medium", l: "https://leetcode.com/problems/lru-cache/" }, { n: "Min Stack", d: "Medium", l: "https://leetcode.com/problems/min-stack/" }, { n: "Implement Trie (Prefix Tree)", d: "Medium", l: "https://leetcode.com/problems/implement-trie-prefix-tree/" }], insight: "These problems test your ability to combine basic data structures to create a more complex one with specific performance characteristics. Focus on the 'why' behind each component." },
+            { day: 65, topic: "Mixed Easy Review", block: "Synthesis & Review", problems: [{ n: "Two Sum", d: "Easy", l: "https://leetcode.com/problems/two-sum/" }, { n: "Valid Parentheses", d: "Easy", l: "https://leetcode.com/problems/valid-parentheses/" }, { n: "Reverse Linked List", d: "Easy", l: "https://leetcode.com/problems/reverse-linked-list/" }], insight: "Don't neglect the easy problems. Your ability to solve these flawlessly and quickly in an interview sets a positive tone and builds confidence." },
+            { day: 66, topic: "Mixed Medium Review I", block: "Synthesis & Review", problems: [{ n: "Top K Frequent Elements", d: "Medium", l: "https://leetcode.com/problems/top-k-frequent-elements/" }, { n: "3Sum", d: "Medium", l: "https://leetcode.com/problems/3sum/" }, { n: "Container With Most Water", d: "Medium", l: "https://leetcode.com/problems/container-with-most-water/" }], insight: "This set reviews core patterns: Heaps for 'Top K', Two Pointers for '3Sum', and the greedy two-pointer approach for 'Container'." },
+            { day: 67, topic: "Mixed Medium Review II", block: "Synthesis & Review", problems: [{ n: "Longest Substring Without Repeating Characters", d: "Medium", l: "https://leetcode.com/problems/longest-substring-without-repeating-characters/" }, { n: "Binary Tree Level Order Traversal", d: "Medium", l: "https://leetcode.com/problems/binary-tree-level-order-traversal/" }, { n: "Validate Binary Search Tree", d: "Medium", l: "https://leetcode.com/problems/validate-binary-search-tree/" }], insight: "A mix of Sliding Window, BFS on trees, and DFS on trees. This tests your ability to select the right tool for the job." },
+            { day: 68, topic: "Mixed Medium Review III", block: "Synthesis & Review", problems: [{ n: "Product of Array Except Self", d: "Medium", l: "https://leetcode.com/problems/product-of-array-except-self/" }, { n: "Kth Smallest Element in a BST", d: "Medium", l: "https://leetcode.com/problems/kth-smallest-element-in-a-bst/" }, { n: "Merge Intervals", d: "Medium", l: "https://leetcode.com/problems/merge-intervals/" }], insight: "This set covers Prefix Sum/Product, properties of BSTs (in-order traversal), and the sort + greedy approach for interval problems." },
+            { day: 69, topic: "Mixed Hard Review", block: "Synthesis & Review", problems: [{ n: "Trapping Rain Water", d: "Hard", l: "https://leetcode.com/problems/trapping-rain-water/" }, { n: "Find Median from Data Stream", d: "Hard", l: "https://leetcode.com/problems/find-median-from-data-stream/" }, { n: "Word Ladder", d: "Hard", l: "https://leetcode.com/problems/word-ladder/" }], insight: "Tackle some of the most classic hard problems again. Can you solve them faster and more confidently now? This is a great benchmark for your progress." },
+            { day: 70, topic: "Final Mock Interview", block: "Synthesis & Review", problems: [{ n: "Choose 1 Easy, 1 Medium, 1 Hard", d: "Hard", l: "#" }], insight: "Simulate a real interview. Give yourself 45 minutes. Talk through your solution out loud. Write clean, production-quality code. This is the final boss battle." },
+            { day: 71, topic: "Rest Day", block: "Synthesis & Review", problems: [], insight: "You've earned it. Let all the knowledge consolidate." },
+            { day: 72, topic: "Arrays & Hashing", block: "Foundations", problems: [{ n: "Two Sum", d: "Easy", l: "https://leetcode.com/problems/two-sum/" }, { n: "Contains Duplicate", d: "Easy", l: "https://leetcode.com/problems/contains-duplicate/" }, { n: "Valid Anagram", d: "Easy", l: "https://leetcode.com/problems/valid-anagram/" }], insight: "For `Two Sum`, avoid the O(n^2) brute-force solution. Ask: 'For each number x, how can I check for the existence of target - x in constant time?' This question leads directly to the hash map pattern." },
+            { day: 73, topic: "Arrays & Hashing", block: "Foundations", problems: [{ n: "Group Anagrams", d: "Medium", l: "https://leetcode.com/problems/group-anagrams/" }, { n: "Top K Frequent Elements", d: "Medium", l: "https://leetcode.com/problems/top-k-frequent-elements/" }, { n: "Find All Anagrams in a String", d: "Medium", l: "https://leetcode.com/problems/find-all-anagrams-in-a-string/" }], insight: "For `Group Anagrams`, the key is to find a canonical representation for each anagram group. A sorted string is a perfect hash key." },
+            { day: 74, topic: "Two Pointers", block: "Foundations", problems: [{ n: "Valid Palindrome", d: "Easy", l: "https://leetcode.com/problems/valid-palindrome/" }, { n: "Two Sum II", d: "Medium", l: "https://leetcode.com/problems/two-sum-ii-input-array-is-sorted/" }, { n: "3Sum", d: "Medium", l: "https://leetcode.com/problems/3sum/" }], insight: "The 'sorted' keyword is a massive hint. For `Two Sum II`, pointers at the start and end allow you to discard half the remaining search space with each move, achieving an O(n) solution." },
+            { day: 75, topic: "Two Pointers", block: "Foundations", problems: [{ n: "Container With Most Water", d: "Medium", l: "https://leetcode.com/problems/container-with-most-water/" }, { n: "Trapping Rain Water", d: "Hard", l: "https://leetcode.com/problems/trapping-rain-water/" }, { n: "Squares of a Sorted Array", d: "Easy", l: "https://leetcode.com/problems/squares-of-a-sorted-array/" }], insight: "In `Container With Most Water`, the bottleneck is the shorter of the two lines. To find a potentially larger area, you must move the pointer of the shorter line inward." },
+            { day: 76, topic: "Sliding Window", block: "Foundations", problems: [{ n: "Best Time to Buy and Sell Stock", d: "Easy", l: "https://leetcode.com/problems/best-time-to-buy-and-sell-stock/" }, { n: "Longest Substring Without Repeating Characters", d: "Medium", l: "https://leetcode.com/problems/longest-substring-without-repeating-characters/" }, { n: "Maximum Subarray", d: "Medium", l: "https://leetcode.com/problems/maximum-subarray/" }], insight: "`Maximum Subarray` introduces Kadane's Algorithm. The core idea is that at each position, the maximum subarray ending *here* is either the current element or the current element plus the maximum subarray ending at the previous position." },
+            { day: 77, topic: "Review Day", block: "Foundations", problems: [{ n: "Mixed Review", d: "Medium", l: "#" }], insight: "Synthesize. Explain the time/space complexity of each approach. Why is one pattern better than another for a given problem? This builds meta-cognitive skill." },
+            { day: 78, topic: "Rest Day", block: "Foundations", problems: [], insight: "Rest is a critical and non-negotiable component of a sustainable high-performance learning plan." },
+            { day: 79, topic: "Sliding Window II", block: "Foundations", problems: [{ n: "Longest Repeating Character Replacement", d: "Medium", l: "https://leetcode.com/problems/longest-repeating-character-replacement/" }, { n: "Permutation in String", d: "Medium", l: "https://leetcode.com/problems/permutation-in-string/" }, { n: "Minimum Window Substring", d: "Hard", l: "https://leetcode.com/problems/minimum-window-substring/" }], insight: "For `Minimum Window Substring`, use a hash map to track character counts needed. The window expands until the condition is met, then the left pointer contracts to find the minimum valid window." },
+            { day: 80, topic: "Prefix Sum", block: "Foundations", problems: [{ n: "Subarray Sum Equals K", d: "Medium", l: "https://leetcode.com/problems/subarray-sum-equals-k/" }, { n: "Product of Array Except Self", d: "Medium", l: "https://leetcode.com/problems/product-of-array-except-self/" }, { n: "Range Sum Query - Immutable", d: "Easy", l: "https://leetcode.com/problems/range-sum-query-immutable/" }], insight: "The O(n) solution for `Subarray Sum Equals K` uses a hash map to store prefix sums. If `current_sum - k` exists in the map, a valid subarray has been found." },
+            { day: 81, topic: "Matrix Traversal", block: "Foundations", problems: [{ n: "Spiral Matrix", d: "Medium", l: "https://leetcode.com/problems/spiral-matrix/" }, { n: "Rotate Image", d: "Medium", l: "https://leetcode.com/problems/rotate-image/" }, { n: "Set Matrix Zeroes", d: "Medium", l: "https://leetcode.com/problems/set-matrix-zeroes/" }], insight: "For `Rotate Image` in-place, the solution is a two-step process: first, transpose the matrix, then reverse each row." },
+            { day: 82, topic: "Stacks", block: "Linear Structures", problems: [{ n: "Valid Parentheses", d: "Easy", l: "https://leetcode.com/problems/valid-parentheses/" }, { n: "Min Stack", d: "Medium", l: "https://leetcode.com/problems/min-stack/" }, { n: "Daily Temperatures", d: "Medium", l: "https://leetcode.com/problems/daily-temperatures/" }], insight: "For `Valid Parentheses`, a stack is the natural data structure. Push opening brackets. When a closing bracket is found, check if the top of the stack is the matching opening bracket." },
+            { day: 83, topic: "Stacks II", block: "Linear Structures", problems: [{ n: "Generate Parentheses", d: "Medium", l: "https://leetcode.com/problems/generate-parentheses/" }, { n: "Evaluate Reverse Polish Notation", d: "Medium", l: "https://leetcode.com/problems/evaluate-reverse-polish-notation/" }, { n: "Largest Rectangle in Histogram", d: "Hard", l: "https://leetcode.com/problems/largest-rectangle-in-histogram/" }], insight: "`Largest Rectangle in Histogram` is the classic monotonic stack problem. The stack stores indices of bars in increasing height." },
+            { day: 84, topic: "Review Day", block: "Linear Structures", problems: [{ n: "Mixed Review", d: "Hard", l: "#" }], insight: "Re-solve `Minimum Window Substring` and `Largest Rectangle in Histogram`. These are challenging but pattern-defining problems." },
+            { day: 85, topic: "Rest Day", block: "Linear Structures", problems: [], insight: "Active recovery can help reset the mind for the upcoming week." },
+            { day: 86, topic: "Linked Lists", block: "Linear Structures", problems: [{ n: "Reverse Linked List", d: "Easy", l: "https://leetcode.com/problems/reverse-linked-list/" }, { n: "Merge Two Sorted Lists", d: "Easy", l: "https://leetcode.com/problems/merge-two-sorted-lists/" }, { n: "Reorder List", d: "Medium", l: "https://leetcode.com/problems/reorder-list/" }], insight: "`Reverse Linked List` is a fundamental skill. Use three pointers: `prev`, `curr`, and `next_temp`. Master this pointer dance." },
+            { day: 87, topic: "Linked Lists II", block: "Linear Structures", problems: [{ n: "Linked List Cycle", d: "Easy", l: "https://leetcode.com/problems/linked-list-cycle/" }, { n: "Middle of the Linked List", d: "Easy", l: "https://leetcode.com/problems/middle-of-the-linked-list/" }, { n: "Remove Nth Node From End of List", d: "Medium", l: "https://leetcode.com/problems/remove-nth-node-from-end-of-list/" }], insight: "The fast/slow pointer pattern is key. For `Linked List Cycle`, if a cycle exists, a pointer moving two steps at a time will eventually meet a pointer moving one step at a time." },
+            { day: 88, topic: "Linked Lists III", block: "Linear Structures", problems: [{ n: "Copy List with Random Pointer", d: "Medium", l: "https://leetcode.com/problems/copy-list-with-random-pointer/" }, { n: "LRU Cache", d: "Medium", l: "https://leetcode.com/problems/lru-cache/" }, { n: "Reverse Nodes in k-Group", d: "Hard", l: "https://leetcode.com/problems/reverse-nodes-in-k-group/" }], insight: "`LRU Cache` is a quintessential design problem combining a hash map and a doubly linked list for O(1) operations." },
+            { day: 89, topic: "Queues", block: "Linear Structures", problems: [{ n: "Implement Queue using Stacks", d: "Easy", l: "https://leetcode.com/problems/implement-queue-using-stacks/" }, { n: "Number of Recent Calls", d: "Easy", l: "https://leetcode.com/problems/number-of-recent-calls/" }, { n: "Time Needed to Buy Tickets", d: "Easy", l: "https://leetcode.com/problems/time-needed-to-buy-tickets/" }], insight: "Queues are the backbone of BFS. They ensure that nodes are processed level by level." },
+            { day: 90, topic: "Car Fleet", block: "Linear Structures", problems: [{ n: "Car Fleet", d: "Medium", l: "https://leetcode.com/problems/car-fleet/" }, { n: "Car Fleet II", d: "Hard", l: "https://leetcode.com/problems/car-fleet-ii/" }], insight: "`Car Fleet` seems like a physics problem, but it's a stack problem in disguise. Sort cars by position and iterate backwards." },
+            { day: 91, topic: "Review Day", block: "Linear Structures", problems: [{ n: "Mixed Review", d: "Hard", l: "#" }], insight: "Re-solve `LRU Cache` and `Reverse Nodes in k-Group`. These test deep understanding of pointer manipulation and data structure synergy." },
+            { day: 92, topic: "Rest Day", block: "Trees & Tries", problems: [], insight: "A day off before diving into non-linear data structures." },
+            { day: 93, topic: "Binary Trees", block: "Trees & Tries", problems: [{ n: "Invert Binary Tree", d: "Easy", l: "https://leetcode.com/problems/invert-binary-tree/" }, { n: "Maximum Depth of Binary Tree", d: "Easy", l: "https://leetcode.com/problems/maximum-depth-of-binary-tree/" }, { n: "Binary Tree Preorder Traversal", d: "Easy", l: "https://leetcode.com/problems/binary-tree-preorder-traversal/" }], insight: "The base case is the most critical part of any recursive tree solution. For most problems, the base case is `if not root: return...`." },
+            { day: 94, topic: "Binary Trees II", block: "Trees & Tries", problems: [{ n: "Diameter of Binary Tree", d: "Easy", l: "https://leetcode.com/problems/diameter-of-binary-tree/" }, { n: "Balanced Binary Tree", d: "Easy", l: "https://leetcode.com/problems/balanced-binary-tree/" }, { n: "Same Tree", d: "Easy", l: "https://leetcode.com/problems/same-tree/" }], insight: "For `Diameter`, the longest path through a node is the sum of the heights of its left and right subtrees. The overall diameter is the maximum of these values over all nodes." },
+            { day: 95, topic: "Binary Trees III", block: "Trees & Tries", problems: [{ n: "Subtree of Another Tree", d: "Easy", l: "https://leetcode.com/problems/subtree-of-another-tree/" }, { n: "Path Sum", d: "Easy", l: "https://leetcode.com/problems/path-sum/" }, { n: "Path Sum II", d: "Medium", l: "https://leetcode.com/problems/path-sum-ii/" }], insight: "For `Subtree`, you need two recursive functions: one to traverse the main tree (`isSubtree`) and one to check if two trees are identical (`isSameTree`)." },
+            { day: 96, topic: "Binary Trees IV", block: "Trees & Tries", problems: [{ n: "Binary Tree Level Order Traversal", d: "Medium", l: "https://leetcode.com/problems/binary-tree-level-order-traversal/" }, { n: "Binary Tree Right Side View", d: "Medium", l: "https://leetcode.com/problems/binary-tree-right-side-view/" }, { n: "Average of Levels in Binary Tree", d: "Easy", l: "https://leetcode.com/problems/average-of-levels-in-binary-tree/" }], insight: "Level order traversal is BFS on a tree. Use a queue. The core loop involves processing all nodes on one level before moving to the next." },
+            { day: 97, topic: "Binary Search Trees", block: "Trees & Tries", problems: [{ n: "Validate Binary Search Tree", d: "Medium", l: "https://leetcode.com/problems/validate-binary-search-tree/" }, { n: "Lowest Common Ancestor of a BST", d: "Medium", l: "https://leetcode.com/problems/lowest-common-ancestor-of-a-binary-search-tree/" }, { n: "Search in a BST", d: "Easy", l: "https://leetcode.com/problems/search-in-a-binary-search-tree/" }], insight: "To validate a BST, it's not enough to check `node.left.val < node.val < node.right.val`. You must pass down min/max bounds during recursion." },
+            { day: 98, topic: "Review Day", block: "Trees & Tries", problems: [{ n: "Mixed Review", d: "Medium", l: "#" }], insight: "Re-solve `Diameter of Binary Tree` (DFS) and `Binary Tree Right Side View` (BFS). Articulate why one traversal is better suited for each problem." },
+            { day: 99, topic: "Rest Day", block: "Trees & Tries", problems: [], insight: "Consolidate your understanding of tree traversals." },
+            { day: 100, topic: "Final Review & Celebration", block: "Synthesis & Review", problems: [{ n: "Revisit your toughest problem", d: "Hard", l: "#" }, { n: "Plan your next steps", d: "Easy", l: "#" }], insight: "Congratulations! You've completed the 100-day protocol. True mastery is a continuous journey. Keep practicing, stay curious, and start applying these skills to real-world projects." },
+        ];
+
+        let completedDays = JSON.parse(localStorage.getItem('completedDays')) || [];
+        let currentFilter = 'All';
+
+        const thematicBlocks = [
+            'All', 
+            'Foundations', 
+            'Linear Structures', 
+            'Search Algorithms',
+            'Trees & Tries', 
+            'Heaps',
+            'Backtracking', 
+            'Graphs',
+            'Dynamic Programming', 
+            'Greedy',
+            'Advanced',
+            'Synthesis & Review'
+        ];
+
+        document.addEventListener('DOMContentLoaded', () => {
+            renderFilterButtons();
+            renderPlan();
+            updateProgress();
+            renderChart();
+            renderLeaderboard();
+            renderProfileChart();
+            setupNavigation();
+            
+            document.getElementById('start-challenge-btn').addEventListener('click', () => {
+                document.getElementById('main-content-area').scrollIntoView({ behavior: 'smooth' });
+            });
+        });
+
+        function setupNavigation() {
+            const navLinks = document.querySelectorAll('.nav-link');
+            const views = document.querySelectorAll('.view-section');
+            
+            function showView(viewId) {
+                views.forEach(view => {
+                    view.classList.remove('active');
+                    if (view.id === `${viewId}-section`) {
+                        view.classList.add('active');
+                    }
+                });
+                navLinks.forEach(link => {
+                    link.classList.remove('active');
+                    if (link.dataset.view === viewId) {
+                        link.classList.add('active');
+                    }
+                });
+            }
+
+            navLinks.forEach(link => {
+                link.addEventListener('click', () => {
+                    showView(link.dataset.view);
+                });
+            });
+
+            // Show challenges view by default
+            showView('challenges');
+        }
+
+        function renderFilterButtons() {
+            const container = document.getElementById('filter-container');
+            container.innerHTML = thematicBlocks.map(block => `
+                <button class="filter-btn px-4 py-2 rounded-full font-semibold" data-filter="${block}">
+                    ${block}
+                </button>
+            `).join('');
+            
+            container.querySelector('[data-filter="All"]').classList.add('active');
+
+            container.addEventListener('click', e => {
+                if (e.target.tagName === 'BUTTON') {
+                    currentFilter = e.target.dataset.filter;
+                    document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+                    e.target.classList.add('active');
+                    document.getElementById('plan-title').textContent = currentFilter === 'All' ? 'All Days' : `${currentFilter}`;
+                    renderPlan();
+                }
+            });
+        }
+
+        function renderPlan() {
+            const container = document.getElementById('plan-container');
+            const filteredPlan = currentFilter === 'All' ? dsaPlan : dsaPlan.filter(day => day.block === currentFilter);
+            
+            if(filteredPlan.length === 0) {
+                container.innerHTML = `<p class="text-center text-text-secondary col-span-full">No plan for this section yet. Check back later!</p>`;
+                return;
+            }
+
+            container.innerHTML = filteredPlan.map(day => {
+                const isCompleted = completedDays.includes(day.day);
+                const isRestDay = day.topic === 'Rest Day';
+                return `
+                <div class="day-card rounded-xl shadow-sm p-5 ${isCompleted ? 'completed' : ''}">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-sm font-medium text-text-secondary">Day ${day.day}</p>
+                            <h3 class="day-title text-xl font-bold mt-1 font-code">${day.topic}</h3>
+                        </div>
+                        ${!isRestDay ? `
+                        <div class="flex items-center space-x-2">
+                            <label for="day-${day.day}" class="text-sm text-text-secondary cursor-pointer">Done</label>
+                            <input type="checkbox" id="day-${day.day}" data-day="${day.day}" class="h-5 w-5 rounded border-gray-300 text-primary-accent focus:ring-primary-accent cursor-pointer" ${isCompleted ? 'checked' : ''}>
+                        </div>
+                        ` : '<span class="text-sm font-medium text-green-400">Recharge!</span>'}
+                    </div>
+                    ${!isRestDay && day.problems.length > 0 ? `
+                    <div class="mt-4">
+                        <h4 class="font-semibold mb-2 font-code">Problems:</h4>
+                        <ul class="space-y-2 font-code">
+                            ${day.problems.map(p => `
+                                <li class="flex justify-between items-center">
+                                    <a href="${p.l}" target="_blank" rel="noopener noreferrer" class="text-primary-accent hover:underline">${p.n}</a>
+                                    <span class="text-xs font-bold px-2 py-1 rounded-full difficulty-${p.d.toLowerCase()}">${p.d}</span>
+                                </li>
+                            `).join('')}
+                        </ul>
+                    </div>
+                    ` : ''}
+                    <div class="mt-4 pt-4 border-t border-gray-700">
+                        <p class="text-sm text-text-secondary"><strong class="font-semibold text-text-primary">Insight:</strong> ${day.insight}</p>
+                    </div>
+                </div>
+            `}).join('');
+        }
+        
+        document.getElementById('plan-container').addEventListener('change', e => {
+            if (e.target.type === 'checkbox') {
+                const day = parseInt(e.target.dataset.day);
+                if (e.target.checked) {
+                    if (!completedDays.includes(day)) {
+                        completedDays.push(day);
+                    }
+                } else {
+                    completedDays = completedDays.filter(d => d !== day);
+                }
+                localStorage.setItem('completedDays', JSON.stringify(completedDays));
+                updateProgress();
+                e.target.closest('.day-card').classList.toggle('completed', e.target.checked);
+            }
+        });
+
+        function updateProgress() {
+            const totalDays = 100;
+            const completedCount = completedDays.length;
+            const percentage = Math.round((completedCount / totalDays) * 100);
+
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('progressText');
+            const daysCompletedText = document.getElementById('daysCompletedText');
+
+            progressBar.style.width = `${percentage}%`;
+            progressText.textContent = `${percentage}%`;
+            daysCompletedText.textContent = `${completedCount} of ${totalDays} Days Completed`;
+        }
+
+        function renderChart() {
+            const ctx = document.getElementById('overviewChart').getContext('2d');
+            const blockCounts = dsaPlan.reduce((acc, day) => {
+                if (day.topic !== 'Rest Day') {
+                    acc[day.block] = (acc[day.block] || 0) + 1;
+                }
+                return acc;
+            }, {});
+
+            const labels = Object.keys(blockCounts);
+            const data = Object.values(blockCounts);
+            
+            const style = getComputedStyle(document.documentElement);
+
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Days per Block',
+                        data: data,
+                        backgroundColor: [
+                            '#22d3ee', '#818cf8', '#f471b5', '#fbbf24',
+                            '#34d399', '#a78bfa', '#f87171', '#60a5fa',
+                            '#4ade80', '#f97316', '#e879f9', '#06b6d4'
+                        ],
+                        borderColor: 'rgba(22, 27, 34, 0.6)',
+                        borderWidth: 3,
+                        hoverOffset: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 15,
+                                color: style.getPropertyValue('--text-secondary').trim(),
+                                font: {
+                                    size: 12,
+                                    family: "'Poppins', sans-serif"
+                                }
+                            }
+                        },
+                        tooltip: {
+                             bodyFont: { family: "'Poppins', sans-serif" },
+                             titleFont: { family: "'Poppins', sans-serif" },
+                             callbacks: {
+                                label: function(context) {
+                                    let label = context.label || '';
+                                    if (label) { label += ': '; }
+                                    if (context.parsed !== null) { label += context.parsed + ' days'; }
+                                    return label;
+                                }
+                            }
+                        }
+                    },
+                    cutout: '60%'
+                }
+            });
+        }
+        
+        function renderProfileChart() {
+            const ctx = document.getElementById('profile-chart').getContext('2d');
+            const style = getComputedStyle(document.documentElement);
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Easy', 'Medium', 'Hard'],
+                    datasets: [{
+                        label: 'Problems Solved',
+                        data: [125, 210, 55], // Mock data
+                        backgroundColor: [
+                           style.getPropertyValue('--difficulty-easy-bg').trim(),
+                           style.getPropertyValue('--difficulty-medium-bg').trim(),
+                           style.getPropertyValue('--difficulty-hard-bg').trim(),
+                        ],
+                        borderColor: [
+                           style.getPropertyValue('--difficulty-easy-text').trim(),
+                           style.getPropertyValue('--difficulty-medium-text').trim(),
+                           style.getPropertyValue('--difficulty-hard-text').trim(),
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                             bodyFont: { family: "'Poppins', sans-serif" },
+                             titleFont: { family: "'Poppins', sans-serif" },
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: style.getPropertyValue('--text-secondary').trim() },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                        },
+                        y: {
+                            ticks: { color: style.getPropertyValue('--text-secondary').trim() },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderLeaderboard() {
+            const container = document.getElementById('leaderboard-container');
+            const mockLeaderboard = [
+                { rank: 1, name: 'AlgoGod', score: 9850 },
+                { rank: 2, name: 'SyntaxSlayer', score: 9500 },
+                { rank: 3, name: 'DataDynamo', score: 9210 },
+                { rank: 4, name: 'CodeMaster_01', score: 8990, isYou: true },
+                { rank: 5, name: 'LogicLord', score: 8750 },
+                { rank: 6, name: 'BitWizard', score: 8500 },
+                { rank: 7, name: 'ScriptSavvy', score: 8230 },
+            ];
+            
+            container.innerHTML = mockLeaderboard.map(user => `
+                <div class="leaderboard-item content-card p-4 rounded-lg flex items-center space-x-4 transition-all duration-300 ${user.isYou ? 'border-2 border-[var(--primary-accent)]' : ''}">
+                    <span class="text-2xl font-bold w-8 text-text-secondary">${user.rank}</span>
+                    <span class="text-3xl">${['🥇','🥈','🥉'][user.rank-1] || '👤'}</span>
+                    <span class="flex-1 font-bold text-lg font-code">${user.name}</span>
+                    <span class="text-xl font-bold text-primary-accent">${user.score} pts</span>
+                </div>
+            `).join('');
+        }
+
+        // Three.js Background Animation
+        function initializeAnimation() {
+            if (typeof THREE === 'undefined') {
+                console.error("Three.js has not loaded yet.");
+                return;
+            }
+
+            let scene, camera, renderer, particles, lines;
+            const PARTICLE_COUNT = 150;
+            const LINE_DISTANCE_THRESHOLD = 100;
+            const mouse = new THREE.Vector2(-1000, -1000);
+            let heroSection = document.getElementById('hero-section');
+
+            function initThreeJS() {
+                const canvas = document.getElementById('bg-canvas');
+                scene = new THREE.Scene();
+                camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                camera.position.z = 250;
+
+                renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true });
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+                const positions = new Float32Array(PARTICLE_COUNT * 3);
+                const velocities = [];
+
+                for (let i = 0; i < PARTICLE_COUNT; i++) {
+                    positions[i * 3] = (Math.random() - 0.5) * window.innerWidth;
+                    positions[i * 3 + 1] = (Math.random() - 0.5) * window.innerHeight;
+                    positions[i * 3 + 2] = 0;
+                    velocities.push({
+                        x: (Math.random() - 0.5) * 0.2,
+                        y: (Math.random() - 0.5) * 0.2
+                    });
+                }
+
+                const particleGeometry = new THREE.BufferGeometry();
+                particleGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                particleGeometry.velocities = velocities;
+                
+                const accentColor = getComputedStyle(document.documentElement).getPropertyValue('--primary-accent').trim();
+
+                const particleMaterial = new THREE.PointsMaterial({
+                    color: new THREE.Color(accentColor),
+                    size: 3,
+                    sizeAttenuation: true
+                });
+                particles = new THREE.Points(particleGeometry, particleMaterial);
+                scene.add(particles);
+
+                const lineGeometry = new THREE.BufferGeometry();
+                const linePositions = new Float32Array(PARTICLE_COUNT * PARTICLE_COUNT * 3);
+                lineGeometry.setAttribute('position', new THREE.BufferAttribute(linePositions, 3));
+                const lineMaterial = new THREE.LineBasicMaterial({
+                    color: new THREE.Color(accentColor),
+                    transparent: true,
+                    opacity: 0.1
+                });
+                lines = new THREE.LineSegments(lineGeometry, lineMaterial);
+                scene.add(lines);
+
+                window.addEventListener('resize', onWindowResize, false);
+                document.addEventListener('mousemove', onMouseMove, false);
+                animate();
+            }
+
+            function onWindowResize() {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+
+            function onMouseMove(event) {
+                mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            }
+
+            function animate() {
+                requestAnimationFrame(animate);
+
+                const positions = particles.geometry.attributes.position.array;
+                const velocities = particles.geometry.velocities;
+                
+                const scrollThreshold = heroSection.offsetHeight * 0.7;
+                const isHeroVisible = window.scrollY < scrollThreshold;
+
+                if (isHeroVisible) {
+                    lines.visible = true;
+                    const linePositions = lines.geometry.attributes.position.array;
+                    let lineIndex = 0;
+
+                    const mouseWorld = new THREE.Vector3(mouse.x, mouse.y, 0.5);
+                    mouseWorld.unproject(camera);
+                    const dir = mouseWorld.sub(camera.position).normalize();
+                    const distance = -camera.position.z / dir.z;
+                    const mousePos = camera.position.clone().add(dir.multiplyScalar(distance));
+
+                    for (let i = 0; i < PARTICLE_COUNT; i++) {
+                        for (let j = i + 1; j < PARTICLE_COUNT; j++) {
+                            const dx = positions[i * 3] - positions[j * 3];
+                            const dy = positions[i * 3 + 1] - positions[j * 3 + 1];
+                            const dist = Math.sqrt(dx * dx + dy * dy);
+
+                            if (dist < LINE_DISTANCE_THRESHOLD) {
+                                linePositions[lineIndex++] = positions[i * 3];
+                                linePositions[lineIndex++] = positions[i * 3 + 1];
+                                linePositions[lineIndex++] = positions[i * 3 + 2];
+                                linePositions[lineIndex++] = positions[j * 3];
+                                linePositions[lineIndex++] = positions[j * 3 + 1];
+                                linePositions[lineIndex++] = positions[j * 3 + 2];
+                            }
+                        }
+                        const dxMouse = positions[i * 3] - mousePos.x;
+                        const dyMouse = positions[i * 3 + 1] - mousePos.y;
+                        const distMouse = Math.sqrt(dxMouse * dxMouse + dyMouse * dyMouse);
+                        if (distMouse < LINE_DISTANCE_THRESHOLD * 1.5) {
+                            linePositions[lineIndex++] = positions[i * 3];
+                            linePositions[lineIndex++] = positions[i * 3 + 1];
+                            linePositions[lineIndex++] = positions[i * 3 + 2];
+                            linePositions[lineIndex++] = mousePos.x;
+                            linePositions[lineIndex++] = mousePos.y;
+                            linePositions[lineIndex++] = mousePos.z;
+                        }
+                    }
+
+                    for (let i = lineIndex; i < linePositions.length; i++) {
+                        linePositions[i] = 0;
+                    }
+                    lines.geometry.attributes.position.needsUpdate = true;
+                    lines.geometry.setDrawRange(0, lineIndex / 3);
+                } else {
+                    lines.visible = false;
+                }
+
+                for (let i = 0; i < PARTICLE_COUNT; i++) {
+                    positions[i * 3] += velocities[i].x;
+                    positions[i * 3 + 1] += velocities[i].y;
+
+                    if (positions[i * 3 + 1] < -window.innerHeight / 2 || positions[i * 3 + 1] > window.innerHeight / 2) {
+                        velocities[i].y = -velocities[i].y;
+                    }
+                    if (positions[i * 3] < -window.innerWidth / 2 || positions[i * 3] > window.innerWidth / 2) {
+                        velocities[i].x = -velocities[i].x;
+                    }
+                }
+
+                particles.geometry.attributes.position.needsUpdate = true;
+                renderer.render(scene, camera);
+            }
+            
+            initThreeJS();
+        }
+
+        // Robustly check for Three.js before initializing
+        const checkThree = setInterval(() => {
+            if (typeof THREE !== 'undefined') {
+                clearInterval(checkThree);
+                initializeAnimation();
+            }
+        }, 100);
+    </script>
+</body>
+</html>
